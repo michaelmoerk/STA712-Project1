@@ -1,0 +1,355 @@
+---
+title: "Project 1"
+author: "Michael Moerk"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+#Load libraries and data
+```{r setup, include=FALSE}
+source("http://www.openintro.org/stat/data/cdc.R")
+cdc$loss <- cdc$weight - cdc$wtdesire
+cdc$gender <- ifelse(cdc$gender == 'm',1,0) #male is 1, female is 0
+cdcEdit <- cdc[which(cdc$loss>=0),] #create new dataset for which those who want to gain weight are excluded
+library(pROC)
+library(xtable)
+library(car)
+library(statmod)
+library(corrplot)
+library(ggplot2)
+library(dplyr)
+```
+#Load Emprical Logit plot funtion
+```{r}
+emplogit = function(x, y, binsize = NULL, ci = FALSE, probit = FALSE, prob = FALSE, main = NULL, xlab = "", ylab = ""){
+  # x         vector with values of the independent variable
+  # y         vector of binary responses
+  # binsize   integer value specifying bin size (optional)
+  # ci        logical value indicating whether to plot approximate
+  #           confidence intervals (not supported as of 02/08/2015)
+  # probit    logical value indicating whether to plot probits instead
+  #           of logits
+  # prob      logical value indicating whether to plot probabilities
+  #           without transforming
+  #
+  # the rest are the familiar plotting options
+
+  if (length(x) != length(y))
+    stop("x and y lengths differ")
+  if (any(y < 0 | y > 1))
+    stop("y not between 0 and 1")
+  if (length(x) < 100 & is.null(binsize))
+    stop("Less than 100 observations: specify binsize manually")
+
+  if (is.null(binsize)) binsize = min(round(length(x)/10), 50)
+
+  if (probit){
+    link = qnorm
+    if (is.null(main)) main = "Empirical probits"
+  } else {
+    link = function(x) log(x/(1-x))
+    if (is.null(main)) main = "Empirical logits"
+  }
+
+  sort = order(x)
+  x = x[sort]
+  y = y[sort]
+  a = seq(1, length(x), by=binsize)
+  b = c(a[-1] - 1, length(x))
+
+  prob = xmean = ns = rep(0, length(a)) # ns is for CIs
+  for (i in 1:length(a)){
+    range = (a[i]):(b[i])
+    prob[i] = mean(y[range])
+    xmean[i] = mean(x[range])
+    ns[i] = b[i] - a[i] + 1 # for CI 
+  }
+
+  extreme = (prob == 1 | prob == 0)
+  prob[prob == 0] = min(prob[!extreme])
+  prob[prob == 1] = max(prob[!extreme])
+
+  g = link(prob) # logits (or probits if probit == TRUE)
+
+  linear.fit = lm(g[!extreme] ~ xmean[!extreme])
+  b0 = linear.fit$coef[1]
+  b1 = linear.fit$coef[2]
+
+  loess.fit = loess(g[!extreme] ~ xmean[!extreme])
+
+    plot(xmean, g, main=main, xlab=xlab, ylab=ylab)
+    abline(b0,b1)
+    lines(loess.fit$x, loess.fit$fitted, lwd=2, lty=2)
+}
+```
+#Find missing rows
+```{r}
+missingRows <- which(is.na(cdc))
+cdc_levels <- as.factor(cdc$exerany)
+levels(cdc_levels)
+```
+
+#Generate general statistics about the data
+```{r}
+cdclevel0 <- cdc[cdc$exerany == 0,]
+cdclevel1 <- cdc[cdc$exerany == 1,]
+median(cdclevel0$age)
+quantile(cdclevel0$age, 0.25)
+quantile(cdclevel0$age, 0.75)
+
+median(cdclevel1$age)
+quantile(cdclevel1$age, 0.25)
+quantile(cdclevel1$age, 0.75)
+
+median(cdclevel0$weight)
+quantile(cdclevel0$weight, 0.25)
+quantile(cdclevel0$weight, 0.75)
+
+median(cdclevel1$weight)
+quantile(cdclevel1$weight, 0.25)
+quantile(cdclevel1$weight, 0.75)
+
+median(cdclevel0$height)
+quantile(cdclevel0$height, 0.25)
+quantile(cdclevel0$height, 0.75)
+
+median(cdclevel1$height)
+quantile(cdclevel1$height, 0.25)
+quantile(cdclevel1$height, 0.75)
+
+median(cdclevel0$wtdesire)
+quantile(cdclevel0$wtdesire, 0.25)
+quantile(cdclevel0$wtdesire, 0.75)
+
+median(cdclevel1$wtdesire)
+quantile(cdclevel1$wtdesire, 0.25)
+quantile(cdclevel1$wtdesire, 0.75)
+
+median(cdclevel0$loss)
+quantile(cdclevel0$loss, 0.25)
+quantile(cdclevel0$loss, 0.75)
+
+median(cdclevel1$loss)
+quantile(cdclevel1$loss, 0.25)
+quantile(cdclevel1$loss, 0.75)
+
+sum(cdclevel0$gender == 0)
+sum(cdclevel0$gender == 0)/count(cdclevel0)
+
+sum(cdclevel1$gender == 0)
+sum(cdclevel1$gender == 0)/count(cdclevel1)
+
+sum(cdclevel0$hlthplan == 1)
+sum(cdclevel0$hlthplan == 1)/count(cdclevel0)
+
+sum(cdclevel1$hlthplan == 1)
+sum(cdclevel1$hlthplan == 1)/count(cdclevel1)
+
+sum(cdclevel0$smoke100 == 1)
+sum(cdclevel0$smoke100 == 1)/count(cdclevel0)
+
+sum(cdclevel1$smoke100 == 1)
+sum(cdclevel1$smoke100 == 1)/count(cdclevel1)
+
+sum(cdclevel0$genhlth == "excellent")
+sum(cdclevel0$genhlth == "excellent")/count(cdclevel0)
+
+sum(cdclevel1$genhlth == "excellent")
+sum(cdclevel1$genhlth == "excellent")/count(cdclevel1)
+
+sum(cdclevel0$genhlth == "very good")
+sum(cdclevel0$genhlth == "very good")/count(cdclevel0)
+
+sum(cdclevel1$genhlth == "very good")
+sum(cdclevel1$genhlth == "very good")/count(cdclevel1)
+
+sum(cdclevel0$genhlth == "good")
+sum(cdclevel0$genhlth == "good")/count(cdclevel0)
+
+sum(cdclevel1$genhlth == "good")
+sum(cdclevel1$genhlth == "good")/count(cdclevel1)
+
+sum(cdclevel0$genhlth == "fair")
+sum(cdclevel0$genhlth == "fair")/count(cdclevel0)
+
+sum(cdclevel1$genhlth == "fair")
+sum(cdclevel1$genhlth == "fair")/count(cdclevel1)
+
+sum(cdclevel0$genhlth == "poor")
+sum(cdclevel0$genhlth == "poor")/count(cdclevel0)
+
+sum(cdclevel1$genhlth == "poor")
+sum(cdclevel1$genhlth == "poor")/count(cdclevel1)
+```
+
+
+
+
+#Create empirical logit plots for the first research question
+```{r}
+emplogit(cdcEdit$age, cdcEdit$exerany, main = "Figure 1", xlab = "Age", ylab = "Log Odds of Exercising Regularly")
+
+emplogit((cdcEdit$loss), (cdcEdit$exerany), main = "Figure 2", xlab = "Weight Loss Desired", ylab = "Log Odds of Exercising Regularly")
+```
+#Create empirical logit plots for the second research question
+```{r}
+emplogit(cdc$age, cdc$exerany, main = "Figure 1", xlab = "Age", ylab = "Log Odds of Exercising Regularly")
+
+emplogit(abs(cdc$loss), (cdc$exerany), main = "Figure 2", xlab = "Weight Loss Desired", ylab = "Log Odds of Exercising Regularly")
+
+emplogit(cdc$height, cdc$exerany, main = "Figure 1", xlab = "Height", ylab = "Log Odds of Exercising Regularly")
+
+emplogit(cdc$weight, cdc$exerany, main = "Figure 1", xlab = "Weight", ylab = "Log Odds of Exercising Regularly")
+
+emplogit((cdc$wtdesire), cdc$exerany, main = "Figure 1", xlab = "Weight Desire", ylab = "Log Odds of Exercising Regularly")
+
+```
+
+
+#Mosaic plots for first research question
+```{r}
+m1 <- table(cdcEdit$genhlth, cdcEdit$exerany)
+dimnames(m1)[[1]] <- c("Excellent", "Very Good","Good", "Fair", "Poor")
+dimnames(m1)[[2]] <- c("No", "Yes")
+
+mosaicplot(m1, main = "Figure 4", xlab = "General Health", ylab = "Excercised In The Last Month")
+
+m2 <- table(cdcEdit$hlthplan, cdcEdit$exerany)
+dimnames(m2)[[1]] <- c("No", "Yes")
+dimnames(m2)[[2]] <- c("No", "Yes")
+
+mosaicplot(m2, main = "Figure 5", xlab = "Health Coverage", ylab = "Excercised In The Last Month")
+```
+#Research question for second research question
+```{r}
+m1 <- table(cdc$genhlth, cdc$exerany)
+dimnames(m1)[[1]] <- c("Excellent", "Very Good","Good", "Fair", "Poor")
+dimnames(m1)[[2]] <- c("No", "Yes")
+
+mosaicplot(m1, main = "Figure 4", xlab = "General Health", ylab = "Excercised In The Last Month")
+
+m2 <- table(cdc$hlthplan, cdc$exerany)
+dimnames(m2)[[1]] <- c("No", "Yes")
+dimnames(m2)[[2]] <- c("No", "Yes")
+
+mosaicplot(m2, main = "Figure 5", xlab = "Health Coverage", ylab = "Excercised In The Last Month")
+
+m3 <- table(cdc$smoke100, cdc$exerany)
+dimnames(m3)[[1]] <- c("No", "Yes")
+dimnames(m3)[[2]] <- c("No", "Yes")
+
+mosaicplot(m3, main = "Figure 5", xlab = "Smoked Atleast 100 Cigarettes During Lifetime", ylab = "Excercised In The Last Month")
+
+m4 <- table(cdc$gender, cdc$exerany)
+dimnames(m4)[[2]] <- c("No", "Yes")
+dimnames(m4)[[1]] <- c("Female", "Male")
+
+mosaicplot(m4, main = "Figure 5", xlab = "Gender", ylab = "Excercised In The Last Month")
+```
+#Create correlation plot for 2nd research question
+```{r}
+cdc$absloss <- abs(cdc$loss)
+cdcTitle <- data.frame("Height"= rep(NA,20000), "Weight"= rep(NA,20000), "Desired Weight"= rep(NA,20000), "Age"= rep(NA,20000), "Desired Weight Loss"= rep(NA,20000), "Absolute Value Desired Weight Loss"= rep(NA,20000))
+cdcTitle$Height <- cdc$height
+cdcTitle$Weight <- cdc$weight
+cdcTitle$Desired.Weight <- cdc$wtdesire
+cdcTitle$Age <- cdc$age
+cdcTitle$Desired.Weight.Loss <- cdc$loss
+cdcTitle$Abs.Weight.Loss <- cdc$absloss
+
+corrplot(cor(cdc[,c("height","weight", "wtdesire", "age", "absloss")]),type = "upper",method = "num", title= "Figure 18", tl.cex = 0.7, mar = c(0,0,1,0))
+corrplot(cor(cdcTitle[,c("Height","Weight", "Desired.Weight", "Age", "Abs.Weight.Loss")]),type = "upper",method = "num", tl.cex = 0.7, mar = c(0,0,1,0), tl.col = "black", col = "black")
+```
+
+#fit model for first research question
+```{r}
+glm1 <- glm(exerany ~ loss + age + genhlth + hlthplan, data = cdcEdit, family = "binomial")
+summary <- round((summary(glm1)$coefficients),3)
+knitr::kable(summary)
+print(xtable(summary, type = "latex"))
+cooks.distance(glm1)[which.max(cooks.distance(glm1))]
+which.max(cooks.distance(glm1))>(4/2000)
+plot(cooks.distance(glm1))
+
+#predictions <- predict(glm1, newdata = cdcEdit, type = "response")
+
+#fit <- glm(cdcEdit$exerany ~ predictions, #family = binomial)
+#data.frame(x = predictions, residuals = qresid(fit)) %>%
+#  ggplot(aes(x = predictions, y = residuals)) +
+#  geom_point() +
+#  theme_bw() + labs(x = "Predicted Probability", y = "Quantized Residuals") + geom_smooth(color = "grey")
+```
+
+#Find VIF for explanatory variables
+```{r}
+cdctryagain <- cdc[,c(1,2,3,4,5,6,7,8,9)]
+glm7 <- glm(exerany ~., data = cdctryagain, family = binomial)
+vif(glm7)
+```
+
+#Generate predictions for second model
+```{r}
+cdcvalidate <- cdc[,c(1,2,3,5,6,8,10)] #remove wtdesire, gender and smoking
+#Creating Training and Test Data for all variables
+n <- nrow(cdcvalidate)
+set.seed(32)
+# Sample the rows
+rowsTrain <- sample(1:n, n*.8, replace = FALSE)
+# Create the new training data
+train <- cdcvalidate[rowsTrain, ]
+# Create the new test data
+test <- cdcvalidate[-rowsTrain, ]
+true1 <- which(test$exerany == 1)
+true0 <- which(test$exerany == 0)
+ntrue1 <- length(true1)
+ntrue0 <- length(true0)
+
+storage <- data.frame("p"= rep(NA,n-length(rowsTrain)), "actual" = test$exerany)
+glm2 <- glm(exerany ~., data = train, family = binomial)
+storage$p <- predict(glm2, newdata = test, type = "response")
+
+summary2 <- round((summary(glm2)$coefficients),3)
+knitr::kable(summary2)
+print(xtable(summary2, type = "latex"))
+```
+
+#Cook's distance for second model
+```{r}
+cooks.distance(glm2)[which.max(cooks.distance(glm2))]
+plot(cooks.distance(glm2))
+```
+#Quantile residual plot
+```{r}
+fittest <- glm(test$exerany ~ storage$p, family = binomial)
+data.frame(x = storage$p, residuals = qresid(fittest)) %>%
+  ggplot(aes(x = storage$p, y = residuals)) +
+  geom_point() +
+  theme_bw() + labs(x = "Predicted Probability", y = "Quantized Residuals") + geom_smooth(color = "grey")
+```
+
+
+#ROC curve
+```{r}
+par(pty = "s")
+roc.info <- roc(test$exerany, storage$p, plot = TRUE, legacy.axes = FALSE, auc=TRUE, ylab = "True Positive Rate (Sensitivity)", xlab = "False Positive Rate (1-Specificity)", xlim = (c(0.5,-.50)), ylim = (c(0,1)))
+roc.df <- data.frame(Threshold = roc.info$thresholds, Sensitivity=roc.info$sensitivities, Specificity = (roc.info$specificities))
+roc.df$Sum <- roc.df$Sensitivity + roc.df$Specificity
+index <- which.max(roc.df$Sum)
+table2 <- roc.df[index,]
+table2$AUC <- roc.info$auc
+table2 <- round(table2 , 4)
+knitr::kable(table2)
+print(xtable(table2, type = "latex"))
+
+plot.roc(
+  roc.info, 
+  print.auc = TRUE, 
+  auc.polygon = TRUE, 
+  grid = TRUE, 
+  grid.col = "lightgray", 
+  xlab = "False Positive Rate (1-Specificity)", 
+  ylab = "True Positive Rate (Sensitivity)", 
+  #xlim = (c(0,-1))
+)
+```
+
+
