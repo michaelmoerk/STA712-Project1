@@ -17,10 +17,11 @@ library(statmod)
 library(corrplot)
 library(ggplot2)
 library(dplyr)
+library(gridExtra)
 ```
 #Load Emprical Logit plot funtion
 ```{r}
-emplogit = function(x, y, binsize = NULL, ci = FALSE, probit = FALSE, prob = FALSE, main = NULL, xlab = "", ylab = ""){
+emplogit = function(x, y, binsize = NULL, ci = FALSE, probit = FALSE, prob = FALSE, main = NULL, xlab = "", ylab = "", xlim = NULL, ylim =NULL){
   # x         vector with values of the independent variable
   # y         vector of binary responses
   # binsize   integer value specifying bin size (optional)
@@ -181,6 +182,34 @@ sum(cdclevel1$genhlth == "poor")
 sum(cdclevel1$genhlth == "poor")/count(cdclevel1)
 ```
 
+# EDA for desired weight loss variable:
+```{r}
+m1 <- glm(cdc$exerany ~ cdc$loss, family = "binomial")
+max(m1$fitted.values)
+
+
+data.frame(x = cdc$loss, resids = qresid(m1)) |>
+  ggplot(aes(x = cdc$loss, y = resids)) +
+  geom_point() +
+  geom_smooth() +
+  theme_bw() + xlim(-150,150) +
+  labs(x = "Weight Loss Desired", y = "Quantile residuals")
+
+m2 <- glm(cdc$exerany ~ abs(cdc$loss), family = "binomial")
+
+data.frame(x = abs(cdc$loss), resids = qresid(m2)) |>
+  ggplot(aes(x = abs(cdc$loss), y = resids)) +
+  geom_point() +
+  geom_smooth() +
+  theme_bw() + xlim(0,150) +
+  labs(x = "Transformed Weight Loss Desired", y = "Quantile residuals")
+
+
+emplogit((cdc$loss), (cdc$exerany), main = "Figure 2", xlab = "Weight Loss Desired", ylab = "Log Odds of Exercising Regularly")
+
+emplogit(abs(cdc$loss), (cdc$exerany), main = "Figure 2", xlab = "Weight Loss Desired", ylab = "Log Odds of Exercising Regularly")
+
+```
 
 
 
@@ -192,16 +221,17 @@ emplogit((cdcEdit$loss), (cdcEdit$exerany), main = "Figure 2", xlab = "Weight Lo
 ```
 #Create empirical logit plots for the second research question
 ```{r}
-emplogit(cdc$age, cdc$exerany, main = "Figure 1", xlab = "Age", ylab = "Log Odds of Exercising Regularly")
 
-emplogit(abs(cdc$loss), (cdc$exerany), main = "Figure 2", xlab = "Weight Loss Desired", ylab = "Log Odds of Exercising Regularly")
+par(mfrow = c(2, 3))
+emplogit(cdc$age, cdc$exerany, main = " ", xlab = "Age", ylab = "Log Odds of Exercising Regularly")
 
-emplogit(cdc$height, cdc$exerany, main = "Figure 1", xlab = "Height", ylab = "Log Odds of Exercising Regularly")
+emplogit(abs(cdc$loss), (cdc$exerany), main = " ", xlab = "Weight Loss Desired", ylab = "Log Odds of Exercising Regularly")
 
-emplogit(cdc$weight, cdc$exerany, main = "Figure 1", xlab = "Weight", ylab = "Log Odds of Exercising Regularly")
+emplogit(cdc$height, cdc$exerany, main = " ", xlab = "Height", ylab = "Log Odds of Exercising Regularly")
 
-emplogit((cdc$wtdesire), cdc$exerany, main = "Figure 1", xlab = "Weight Desire", ylab = "Log Odds of Exercising Regularly")
+emplogit(cdc$weight, cdc$exerany, main = " ", xlab = "Weight", ylab = "Log Odds of Exercising Regularly")
 
+emplogit(cdc$wtdesire, cdc$exerany, main = " ", xlab = "Weight Desire", ylab = "Log Odds of Exercising Regularly")
 ```
 
 
@@ -211,40 +241,44 @@ m1 <- table(cdcEdit$genhlth, cdcEdit$exerany)
 dimnames(m1)[[1]] <- c("Excellent", "Very Good","Good", "Fair", "Poor")
 dimnames(m1)[[2]] <- c("No", "Yes")
 
-mosaicplot(m1, main = "Figure 4", xlab = "General Health", ylab = "Excercised In The Last Month")
+mosaicplot(m1, main = "Figure 6", xlab = "General Health", ylab = "Excercised In The Last Month")
 
 m2 <- table(cdcEdit$hlthplan, cdcEdit$exerany)
 dimnames(m2)[[1]] <- c("No", "Yes")
 dimnames(m2)[[2]] <- c("No", "Yes")
 
-mosaicplot(m2, main = "Figure 5", xlab = "Health Coverage", ylab = "Excercised In The Last Month")
+mosaicplot(m2, main = "Figure 7", xlab = "Health Coverage", ylab = "Excercised In The Last Month")
 ```
-#Research question for second research question
+#Mosaic Plots for second research question
 ```{r}
+par(mfrow = c(2,2))
 m1 <- table(cdc$genhlth, cdc$exerany)
 dimnames(m1)[[1]] <- c("Excellent", "Very Good","Good", "Fair", "Poor")
 dimnames(m1)[[2]] <- c("No", "Yes")
 
-mosaicplot(m1, main = "Figure 4", xlab = "General Health", ylab = "Excercised In The Last Month")
+mosaicplot(m1, main = " ", xlab = "General Health", ylab = "Excercised In The Last Month")
 
 m2 <- table(cdc$hlthplan, cdc$exerany)
 dimnames(m2)[[1]] <- c("No", "Yes")
 dimnames(m2)[[2]] <- c("No", "Yes")
 
-mosaicplot(m2, main = "Figure 5", xlab = "Health Coverage", ylab = "Excercised In The Last Month")
+mosaicplot(m2, main = " ", xlab = "Health Coverage", ylab = "Excercised In The Last Month")
 
 m3 <- table(cdc$smoke100, cdc$exerany)
 dimnames(m3)[[1]] <- c("No", "Yes")
 dimnames(m3)[[2]] <- c("No", "Yes")
 
-mosaicplot(m3, main = "Figure 5", xlab = "Smoked Atleast 100 Cigarettes During Lifetime", ylab = "Excercised In The Last Month")
+mosaicplot(m3, main = " ", xlab = "Smoked Atleast 100 Cigarettes During Lifetime", ylab = "Excercised In The Last Month")
 
 m4 <- table(cdc$gender, cdc$exerany)
 dimnames(m4)[[2]] <- c("No", "Yes")
 dimnames(m4)[[1]] <- c("Female", "Male")
 
-mosaicplot(m4, main = "Figure 5", xlab = "Gender", ylab = "Excercised In The Last Month")
+mosaicplot(m4, main = " ", xlab = "Gender", ylab = "Excercised In The Last Month")
+#mtext("Figure 5", side = 3, line = -1, outer = TRUE, font = 2, cex = 1)
 ```
+
+
 #Create correlation plot for 2nd research question
 ```{r}
 cdc$absloss <- abs(cdc$loss)
@@ -317,14 +351,6 @@ print(xtable(summary2, type = "latex"))
 cooks.distance(glm2)[which.max(cooks.distance(glm2))]
 plot(cooks.distance(glm2))
 ```
-#Quantile residual plot
-```{r}
-fittest <- glm(test$exerany ~ storage$p, family = binomial)
-data.frame(x = storage$p, residuals = qresid(fittest)) %>%
-  ggplot(aes(x = storage$p, y = residuals)) +
-  geom_point() +
-  theme_bw() + labs(x = "Predicted Probability", y = "Quantized Residuals") + geom_smooth(color = "grey")
-```
 
 
 #ROC curve
@@ -351,5 +377,3 @@ plot.roc(
   #xlim = (c(0,-1))
 )
 ```
-
-
